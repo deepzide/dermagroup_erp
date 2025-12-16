@@ -10,9 +10,5 @@
     "branch": "version-15",
     "commit_hash": "15a147224465681bfdddcb33c0017aab623cde54",
     "version": "15.52.0"
-  },
-  {
-    "url": "https://github.com/deepzide/pablostock_custom",
-    "branch": "main"
   }
 ]
