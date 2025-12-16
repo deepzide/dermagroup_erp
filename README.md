@@ -7,9 +7,9 @@ The only files that you need to init change is `apps.json` and `custom.txt`.
 ├── .github // No tocar
 ├── ansible // No tocar
 ├── apps.json
-├── pablo_stock // Custom app 
+├── derma_group // Custom app -> Debes crearla
 ├── custom.txt // agregar nombre de custom app
-├── pyproject.toml 
+├── pyproject.toml // DEbes crearla
 
 ```
 
