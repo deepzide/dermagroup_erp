@@ -1,0 +1,244 @@
+---
+- name: Deploy custom ERPNext stack
+  hosts: erpnext
+  become: true
+  vars:
+    project_dir: /opt/erpnext
+    repo_url: https://github.com/frappe/frappe_docker.git
+    target_image: dcorps/dermagroup:latest
+    site_name: frontend
+    admin_password: admin  # puedes cambiarla si quieres
+
+  tasks:
+    # ------------------------------------------------------------------------
+    # 🗂️ Preparación del servidor
+    # ------------------------------------------------------------------------
+    - name: Ensure project directory exists
+      ansible.builtin.file:
+        path: "{{ project_dir }}"
+        state: directory
+        mode: "0755"
+
+    # ------------------------------------------------------------------------
+    # 🐳 Instalación de Docker usando script oficial
+    # ------------------------------------------------------------------------
+    - name: Check if Docker is already installed
+      ansible.builtin.command:
+        cmd: docker --version
+      register: docker_installed
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install Docker using official convenience script
+      ansible.builtin.shell: |
+        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+        sh /tmp/get-docker.sh
+        rm /tmp/get-docker.sh
+      args:
+        executable: /bin/bash
+      when: docker_installed.rc != 0
+
+    - name: Ensure Docker service is enabled and started
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ubuntu user to docker group
+      ansible.builtin.user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Verify Docker Compose is installed
+      ansible.builtin.command:
+        cmd: docker compose version
+      register: compose_version
+      changed_when: false
+
+    - name: Display Docker Compose version
+      ansible.builtin.debug:
+        msg: "Docker Compose instalado: {{ compose_version.stdout }}"
+
+    - name: Ensure dependencies are installed
+      ansible.builtin.package:
+        name:
+          - bc
+          - curl
+          - expect
+          - git
+          - ca-certificates
+        state: present
+
+    # ------------------------------------------------------------------------
+    # ⚙️ Clonar frappe_docker
+    # ------------------------------------------------------------------------
+    - name: Clone frappe_docker repository
+      ansible.builtin.git:
+        repo: "{{ repo_url }}"
+        dest: "{{ project_dir }}/frappe_docker"
+        version: main
+        force: yes
+
+    # ------------------------------------------------------------------------
+    # 📋 Leer apps desde archivo custom.txt local
+    # ------------------------------------------------------------------------
+    - name: Leer apps desde custom.txt local
+      ansible.builtin.set_fact:
+        custom_apps: "{{ lookup('file', '../custom.txt').split('\n') | select('match', '^[^#]') | reject('equalto', '') | reject('equalto', 'erpnext') | list }}"
+
+    - name: Mostrar apps leídas desde custom.txt
+      ansible.builtin.debug:
+        msg: "Apps leídas (sin duplicar erpnext): {{ custom_apps }}"
+
+    # ------------------------------------------------------------------------
+    # ✏️ Modificar imagen y new-site
+    # ------------------------------------------------------------------------
+    - name: Replace frappe/erpnext image with custom image
+      ansible.builtin.shell: |
+        sed -i "s|frappe/erpnext:[^\"']*|{{ target_image }}|g" {{ project_dir }}/frappe_docker/pwd.yml
+      args:
+        executable: /bin/bash
+
+    - name: Agregar apps al comando bench new-site
+      ansible.builtin.shell: |
+        apps_flags=""
+        for app in {{ custom_apps | join(' ') }}; do
+          apps_flags="$apps_flags --install-app $app"
+        done
+        sed -i "/bench new-site/s|--install-app erpnext|--install-app erpnext$apps_flags|g" {{ project_dir }}/frappe_docker/pwd.yml
+      args:
+        executable: /bin/bash
+
+    # ------------------------------------------------------------------------
+    # 🐳 Pull de la imagen custom y levantar stack
+    # ------------------------------------------------------------------------
+    - name: Pull latest custom ERPNext image
+      ansible.builtin.command:
+        cmd: docker pull {{ target_image }}
+
+    - name: Start base stack (db, redis)
+      ansible.builtin.command:
+        cmd: docker compose -f pwd.yml up -d 
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+
+    - name: Wait until MariaDB is ready
+      ansible.builtin.shell: |
+        until docker compose -f pwd.yml exec -T db mysqladmin ping -h db --silent; do
+          echo "⏳ Esperando que MariaDB inicie..."
+          sleep 5
+        done
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+
+
+    # ------------------------------------------------------------------------
+    # ⚡ Crear sitio si no existe
+    # ------------------------------------------------------------------------
+    - name: Check if site exists
+      ansible.builtin.command:
+        cmd: docker compose -f pwd.yml exec -T backend ls sites/{{ site_name }}
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      register: site_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Create site if missing
+      ansible.builtin.shell: |
+        echo "🆕 Creando sitio {{ site_name }}..."
+        docker compose -f pwd.yml exec -T backend bench new-site {{ site_name }} \
+          --mariadb-root-password 123 \
+          --admin-password {{ admin_password }} \
+          --install-app erpnext \
+          --force
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      when: site_check.rc != 0
+      register: create_site_output
+
+    - name: Mostrar resultado de creación
+      ansible.builtin.debug:
+        msg: "{{ create_site_output.stdout_lines | default([]) }}"
+      when: create_site_output is defined
+
+    # ------------------------------------------------------------------------
+    # 🔄 Migraciones y build
+    # ------------------------------------------------------------------------
+    - name: Run migrations
+      ansible.builtin.shell: |
+        docker compose -f pwd.yml exec -T backend bench --site {{ site_name }} migrate
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      when: (site_check.rc == 0) or (create_site_output is defined and create_site_output.rc == 0)
+      register: migrate_output
+      ignore_errors: yes
+
+    - name: Handle migration failure by recreating site
+      ansible.builtin.shell: |
+        echo "⚠️ Migration failed, recreating site from scratch..."
+        docker compose -f pwd.yml exec -T backend bench drop-site {{ site_name }} --force || true
+        docker compose -f pwd.yml exec -T backend bench new-site {{ site_name }} \
+          --mariadb-root-password 123 \
+          --admin-password {{ admin_password }} \
+          --install-app erpnext \
+          --force
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      when: migrate_output is defined and migrate_output.rc != 0
+
+    - name: Rebuild assets (safe bash mode)
+      ansible.builtin.shell: |
+        docker compose -f pwd.yml exec -T backend /bin/bash -c "bench build || (echo '⚠️ Fallo en build, limpiando cache...' && bench clear-cache)"
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      when: (migrate_output is defined and migrate_output.rc == 0) or (create_site_output is defined and create_site_output.rc == 0)
+
+    # ------------------------------------------------------------------------
+    # 🧩 Instalar apps adicionales (erpnext + custom)
+    # ------------------------------------------------------------------------
+    - name: Ensure all required apps (erpnext + custom) are installed
+      ansible.builtin.shell: |
+        all_apps="erpnext {{ custom_apps | join(' ') }}"
+        installed=$(docker compose -f pwd.yml exec -T backend bench --site {{ site_name }} list-apps)
+        for app in $all_apps; do
+          if ! echo "$installed" | grep -q "$app"; then
+            echo "⚙️ Instalando app faltante: $app"
+            docker compose -f pwd.yml exec -T backend bench --site {{ site_name }} install-app $app || true
+          else
+            echo "✅ App ya instalada: $app"
+          fi
+        done
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      when: (migrate_output is defined and migrate_output.rc == 0) or (create_site_output is defined and create_site_output.rc == 0)
+
+    # ------------------------------------------------------------------------
+    # 🔁 Reinicio final
+    # ------------------------------------------------------------------------
+    - name: Compose down
+      ansible.builtin.command:
+        cmd: docker compose -f pwd.yml down
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+
+    - name: Compose up
+      ansible.builtin.command:
+        cmd: docker compose -f pwd.yml up -d
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+
+    # ------------------------------------------------------------------------
+    # 📊 Resumen
+    # ------------------------------------------------------------------------
+    - name: Deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ ERPNext desplegado correctamente"
+          - "🖼️ Imagen: {{ target_image }}"
+          - "📦 Apps: erpnext, {{ custom_apps | join(', ') }}"
+          - "🌐 http://{{ ansible_host }}:8080"
+          - "👤 Administrator / 🔑 {{ admin_password }}"
+          - "=========================================="

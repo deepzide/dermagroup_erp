@@ -1,0 +1,121 @@
+name:  Deploy to server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  workflow_call:
+    inputs: {}
+    secrets:
+      DOCKER_USER:
+        required: true
+      DOCKER_TOKEN:
+        required: true
+      SSH_KEY_PRIVATE:
+        required: true
+
+env:
+  SERVER_IP: 212.56.43.182
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Configure SSH for private repos
+      - name: Configure SSH access
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY_PRIVATE }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      # 3️⃣ Encode apps.json
+      - name: Encode apps.json
+        id: encode
+        run: |
+          export APPS_JSON_BASE64=$(base64 -w 0 apps.json)
+          echo "APPS_JSON_BASE64=$APPS_JSON_BASE64" >> $GITHUB_ENV
+
+      # 4️⃣ Clone frappe_docker
+      - name: Clone frappe_docker
+        run: git clone https://github.com/frappe/frappe_docker
+
+      # 5️⃣ Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 6️⃣ Login to DockerHub
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      # 9️⃣ Generate compose.yaml with custom image
+      # 9️⃣ Generate compose.yaml with custom image
+      - name: Build and push custom ERPNext image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frappe_docker
+          file: ./frappe_docker/images/layered/Containerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USER }}/pablo:latest
+          no-cache: true  # ← Solo esto mientras desarrollas
+          build-args: |
+            FRAPPE_PATH=https://github.com/frappe/frappe
+            FRAPPE_BRANCH=version-15
+            APPS_JSON_BASE64=${{ env.APPS_JSON_BASE64 }}
+
+
+  ansible:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Decode base64 key and save it
+          echo "${{ secrets.SSH_KEY_PRIVATE }}" | base64 --decode > ~/.ssh/erpnext_deploy_key
+          chmod 600 ~/.ssh/erpnext_deploy_key
+          
+          # Add known host to avoid prompt
+          ssh-keyscan -H ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Test SSH connection
+          echo "Testing SSH connection..."
+          ssh -i ~/.ssh/erpnext_deploy_key -o StrictHostKeyChecking=no root@${{ env.SERVER_IP }} "echo 'SSH connection successful!'"
+
+      # 4️⃣ Create Ansible inventory
+      - name: Create dynamic inventory
+        run: |
+          SSH_KEY_PATH="${HOME}/.ssh/erpnext_deploy_key"
+          
+          cat > ./ansible/inventory.ini <<EOF
+          [erpnext]
+          ${{ env.SERVER_IP }} ansible_user=root ansible_ssh_private_key_file=${SSH_KEY_PATH}
+          EOF
+          
+          echo "=== Generated Inventory ==="
+          cat ./ansible/inventory.ini
+
+      # 5️⃣ Test Ansible connection
+      - name: Test Ansible connection
+        run: |
+          ansible all -i ./ansible/inventory.ini -m ping
+
+      # 6️⃣ Run playbook for remote deployment
+      - name: Deploy docker-compose via Ansible
+        run: |
+          ansible-playbook -i ./ansible/inventory.ini ./ansible/docker_erpnext.yml -v

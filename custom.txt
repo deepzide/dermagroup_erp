@@ -1,0 +1,4 @@
+hrms
+pablo_stock
+erpnext
+

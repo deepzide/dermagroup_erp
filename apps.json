@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://github.com/frappe/erpnext",
+    "branch": "version-15",
+    "commit_hash": "7ec6ef3139fbc85e8dc2ddfea97dfa87dc84a95e",
+    "version": "15.84.0"
+  },
+  {
+    "url": "https://github.com/frappe/hrms",
+    "branch": "version-15",
+    "commit_hash": "15a147224465681bfdddcb33c0017aab623cde54",
+    "version": "15.52.0"
+  },
+  {
+    "url": "https://github.com/deepzide/pablostock_custom",
+    "branch": "main"
+  }
+]
