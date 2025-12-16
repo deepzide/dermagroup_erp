@@ -15,7 +15,7 @@ on:
         required: true
 
 env:
-  SERVER_IP: 212.56.43.182
+  SERVER_IP: 62.84.178.167
 
 jobs:
   build:
@@ -64,7 +64,7 @@ jobs:
           context: ./frappe_docker
           file: ./frappe_docker/images/layered/Containerfile
           push: true
-          tags: ${{ secrets.DOCKER_USER }}/pablo:latest
+          tags: ${{ secrets.DOCKER_USER }}/dermagroup:latest
           no-cache: true  # ← Solo esto mientras desarrollas
           build-args: |
             FRAPPE_PATH=https://github.com/frappe/frappe
