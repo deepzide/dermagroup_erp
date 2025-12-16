@@ -157,11 +157,11 @@
         chdir: "{{ project_dir }}/frappe_docker"
       when: site_check.rc != 0
       register: create_site_output
+      ignore_errors: yes
 
     - name: Mostrar resultado de creación
       ansible.builtin.debug:
         msg: "{{ create_site_output.stdout_lines | default([]) }}"
-      when: create_site_output is defined
 
     # ------------------------------------------------------------------------
     # 🔄 Migraciones y build
@@ -171,29 +171,14 @@
         docker compose -f pwd.yml exec -T backend bench --site {{ site_name }} migrate
       args:
         chdir: "{{ project_dir }}/frappe_docker"
-      when: (site_check.rc == 0) or (create_site_output is defined and create_site_output.rc == 0)
-      register: migrate_output
-      ignore_errors: yes
-
-    - name: Handle migration failure by recreating site
-      ansible.builtin.shell: |
-        echo "⚠️ Migration failed, recreating site from scratch..."
-        docker compose -f pwd.yml exec -T backend bench drop-site {{ site_name }} --force || true
-        docker compose -f pwd.yml exec -T backend bench new-site {{ site_name }} \
-          --mariadb-root-password 123 \
-          --admin-password {{ admin_password }} \
-          --install-app erpnext \
-          --force
-      args:
-        chdir: "{{ project_dir }}/frappe_docker"
-      when: migrate_output is defined and migrate_output.rc != 0
+      when: site_check.rc == 0 or create_site_output.rc == 0
 
     - name: Rebuild assets (safe bash mode)
       ansible.builtin.shell: |
         docker compose -f pwd.yml exec -T backend /bin/bash -c "bench build || (echo '⚠️ Fallo en build, limpiando cache...' && bench clear-cache)"
       args:
         chdir: "{{ project_dir }}/frappe_docker"
-      when: (migrate_output is defined and migrate_output.rc == 0) or (create_site_output is defined and create_site_output.rc == 0)
+      when: site_check.rc == 0 or create_site_output.rc == 0
 
     # ------------------------------------------------------------------------
     # 🧩 Instalar apps adicionales (erpnext + custom)
@@ -212,7 +197,7 @@
         done
       args:
         chdir: "{{ project_dir }}/frappe_docker"
-      when: (migrate_output is defined and migrate_output.rc == 0) or (create_site_output is defined and create_site_output.rc == 0)
+      when: site_check.rc == 0 or create_site_output.rc == 0
 
     # ------------------------------------------------------------------------
     # 🔁 Reinicio final
@@ -242,3 +227,4 @@
           - "🌐 http://{{ ansible_host }}:8080"
           - "👤 Administrator / 🔑 {{ admin_password }}"
           - "=========================================="
+
