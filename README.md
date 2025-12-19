@@ -60,3 +60,8 @@ erpnext
 When adding custom development, both configuration files must be updated:  
 - Add the repository URL and branch to [`apps.json`](apps.json)  
 - Add the application name to [`custom.txt`](custom.txt)
+
+## Documentación de Aplicaciones
+
+### Dermagroup Lab
+Para más detalles sobre la aplicación de gestión de laboratorio, consulte la documentación en [`dermagroup_lab/README.md`](dermagroup_lab/README.md).
