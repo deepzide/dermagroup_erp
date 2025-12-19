@@ -1,0 +1,26 @@
+[
+  {
+    "doctype": "Role",
+    "role_name": "Production Manager",
+    "desk_access": 1,
+    "disabled": 0,
+    "is_custom": 1,
+    "name": "Production Manager"
+  },
+  {
+    "doctype": "Role", 
+    "role_name": "Purchasing Manager",
+    "desk_access": 1,
+    "disabled": 0,
+    "is_custom": 1,
+    "name": "Purchasing Manager"
+  },
+  {
+    "doctype": "Role",
+    "role_name": "Director",
+    "desk_access": 1,
+    "disabled": 0,
+    "is_custom": 1,
+    "name": "Director"
+  }
+]

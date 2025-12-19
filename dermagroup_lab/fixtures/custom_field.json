@@ -1,0 +1,74 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-production_purchase_section",
+    "dt": "Material Request",
+    "label": "Production Purchase Details",
+    "fieldname": "production_purchase_section",
+    "fieldtype": "Section Break",
+    "insert_after": "set_from_warehouse",
+    "collapsible": 1,
+    "depends_on": "eval:doc.material_request_type=='Purchase'"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-suggested_supplier",
+    "dt": "Material Request",
+    "label": "Suggested Supplier",
+    "fieldname": "suggested_supplier",
+    "fieldtype": "Link",
+    "options": "Supplier",
+    "insert_after": "production_purchase_section",
+    "description": "Auto-filled from last purchase order"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-purchase_type",
+    "dt": "Material Request",
+    "label": "Purchase Type",
+    "fieldname": "purchase_type",
+    "fieldtype": "Select",
+    "options": "\nLocal\nImportación",
+    "insert_after": "suggested_supplier"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-estimated_arrival_date",
+    "dt": "Material Request",
+    "label": "Estimated Arrival Date",
+    "fieldname": "estimated_arrival_date",
+    "fieldtype": "Date",
+    "insert_after": "purchase_type"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-column_break_production_1",
+    "dt": "Material Request",
+    "fieldname": "column_break_production_1",
+    "fieldtype": "Column Break",
+    "insert_after": "purchase_type"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-supplier_email",
+    "dt": "Material Request",
+    "label": "Supplier Email",
+    "fieldname": "supplier_email",
+    "fieldtype": "Data",
+    "insert_after": "column_break_production_1",
+    "read_only": 1,
+    "fetch_from": "suggested_supplier.email_id"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Material Request-custom_approval_status",
+    "dt": "Material Request",
+    "label": "Custom Approval Status",
+    "fieldname": "custom_approval_status",
+    "fieldtype": "Select",
+    "options": "\nPending Approval\nUnder Review\nApproved\nSent to Supplier\nConfirmed\nPending Delivery\nCancelled",
+    "insert_after": "supplier_email",
+    "hidden": 1,
+    "allow_on_submit": 1
+  }
+]

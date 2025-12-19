@@ -1,0 +1,16 @@
+{% set mr = doc %}
+
+<p>{{ _(\"Hello\") }}{% if supplier_name %} {{ supplier_name }}{% endif %},</p>
+
+<p>{{ _(\"Please find attached the purchase request\") }} <strong>{{ mr.name }}</strong>.</p>
+
+{% if mr.get('items') %}
+<p><strong>{{ _(\"Items\") }}:</strong></p>
+<ul>
+	{% for row in mr.get('items') %}
+	<li>{{ row.item_code }} - {{ row.qty }}{% if row.uom %} {{ row.uom }}{% endif %}</li>
+	{% endfor %}
+</ul>
+{% endif %}
+
+<p>{{ _(\"Regards\") }},<br>{{ frappe.session.user }}</p>
