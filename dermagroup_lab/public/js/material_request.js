@@ -1,186 +1,253 @@
+/**
+ * Handles Material Request form customizations
+ */
+// Add custom validation to prevent submission if not approved
 frappe.ui.form.on("Material Request", {
-	refresh: function (frm) {
-		const min_estimated_arrival_date = frappe.datetime.add_days(
-			frappe.datetime.get_today(),
-			1
-		);
-		const min_date_obj = frappe.datetime.str_to_obj(min_estimated_arrival_date);
-		cur_frm.fields_dict.estimated_arrival_date.datepicker.update({
-			minDate: min_date_obj,
+	on_submit: function (form) {
+		// Only allow submission if status is 'Approved'
+		if (!["Approved"].includes(form.doc.custom_approval_status)) {
+			frappe.msgprint(__("Please approve this request before submitting"));
+			frappe.validated = false;
+		}
+	},
+	/**
+	 * Refresh handler for Material Request form
+	 * @param {Object} form - The form object
+	 */
+	refresh: function (form) {
+		const { doc } = form;
+
+		// Disable submit button if not approved
+		if (form.doc.docstatus === 0) {
+			// Only for draft documents
+			const is_approved = ["Approved"].includes(form.doc.custom_approval_status);
+
+			// Remove the default Submit button
+			form.page.clear_primary_action();
+
+			if (is_approved) {
+				// If approved, show Submit button
+				form.page.set_primary_action(__("Submit"), function () {
+					form.save("Submit");
+				});
+			} else {
+				// If not approved, show only Save button
+				form.page.set_primary_action(__("Save"), function () {
+					form.save();
+				});
+			}
+		}
+		const today = frappe.datetime.get_today();
+		const minArrivalDate = frappe.datetime.add_days(today, 1);
+		const minDateObj = frappe.datetime.str_to_obj(minArrivalDate);
+
+		// Update date picker constraints
+		form.fields_dict.estimated_arrival_date?.datepicker?.update({
+			minDate: minDateObj,
 		});
 
-		const status_colors = {
+		// Status color mapping
+		const statusColors = {
 			"Pending Approval": "blue",
-			"Under Review": "purple",
 			Approved: "green",
 			"Sent to Supplier": "green",
-			Confirmed: "darkgreen",
+			Confirmed: "blue",
 			"Pending Delivery": "yellow",
 			Cancelled: "red",
 		};
 
-		if (frm.doc.custom_approval_status) {
-			frm.page.set_indicator(
-				frm.doc.custom_approval_status,
-				status_colors[frm.doc.custom_approval_status]
+		// Set status indicator if status exists
+		if (doc.custom_approval_status) {
+			form.page.set_indicator(
+				__(doc.custom_approval_status),
+				statusColors[doc.custom_approval_status]
 			);
 		}
 
-		// Botones para documentos submitted
-		if (frm.doc.docstatus === 1) {
-			if (frm.doc.custom_approval_status === "Sent to Supplier") {
-				frm.add_custom_button(
-					__("Confirm Receipt"),
-					function () {
-						frappe.call({
-							method: "frappe.client.set_value",
-							args: {
-								doctype: "Material Request",
-								name: frm.doc.name,
-								fieldname: "custom_approval_status",
-								value: "Confirmed",
-							},
-							callback: function (r) {
-								frm.reload_doc();
-							},
-						});
-					},
-					__("Actions")
-				);
+		// Get user roles
+		const userRoles = frappe.user_roles || [];
+		const hasProductionAccess = userRoles.includes("Production Manager");
+		const hasPurchasingAccess = userRoles.includes("Purchasing Manager");
 
-				frm.add_custom_button(
-					__("Mark Pending Delivery"),
-					function () {
-						frappe.call({
-							method: "frappe.client.set_value",
-							args: {
-								doctype: "Material Request",
-								name: frm.doc.name,
-								fieldname: "custom_approval_status",
-								value: "Pending Delivery",
-							},
-							callback: function (r) {
-								frm.reload_doc();
-							},
-						});
-					},
-					__("Actions")
-				);
-			}
+		// Handle submitted documents
+		if (doc.docstatus === 1) {
+			handleSubmittedDocument(form, doc, hasPurchasingAccess);
 		}
-		// Botones para documentos draft (docstatus = 0)
-		else if (frm.doc.docstatus === 0) {
-			if (!frm.doc.custom_approval_status || frm.doc.custom_approval_status === "Draft") {
-				frm.add_custom_button(__("Submit for Approval"), function () {
-					frm.set_value("custom_approval_status", "Pending Approval");
-					frm.save();
-				});
-			}
+		// Handle draft documents
+		else if (doc.docstatus === 0) {
+			handleDraftDocument(form, doc, hasProductionAccess, hasPurchasingAccess);
+		}
 
-			if (frm.doc.custom_approval_status === "Pending Approval") {
-				frm.add_custom_button(__("Start Review"), function () {
-					frm.set_value("custom_approval_status", "Under Review");
-					frm.save();
-				});
-			}
-
-			if (frm.doc.custom_approval_status === "Under Review") {
-				frm.add_custom_button(
-					__("Approve"),
-					function () {
-						frm.set_value("custom_approval_status", "Approved");
-						frm.save();
-					},
-					__("Actions")
-				);
-			}
-
-			if (frm.doc.custom_approval_status === "Approved") {
-				frm.add_custom_button(__("Send to Supplier"), function () {
-					frappe.call({
-						method: "frappe.client.set_value",
-						args: {
-							doctype: "Material Request",
-							name: frm.doc.name,
-							fieldname: "custom_approval_status",
-							value: "Sent to Supplier",
-						},
-						callback: function (r) {
-							frm.reload_doc();
-						},
-					});
-				});
-			}
+		// Auto-fill supplier from last purchase if new document
+		if (doc.__islocal && doc.material_request_type === "Purchase") {
+			autoFillSupplierFromLastPurchase(form);
 		}
 	},
 
-	estimated_arrival_date: function (frm) {
-		const min_estimated_arrival_date = frappe.datetime.add_days(
-			frappe.datetime.get_today(),
-			1
-		);
+	/**
+	 * Validates estimated arrival date
+	 * @param {Object} form - The form object
+	 */
+	estimated_arrival_date: function (form) {
+		const { doc } = form;
+		const minDate = frappe.datetime.add_days(frappe.datetime.get_today(), 1);
+
 		if (
-			frm.doc.estimated_arrival_date &&
-			frappe.datetime.compare_date(
-				frm.doc.estimated_arrival_date,
-				min_estimated_arrival_date
-			) < 0
+			doc.estimated_arrival_date &&
+			frappe.datetime.compare_date(doc.estimated_arrival_date, minDate) < 0
 		) {
 			frappe.msgprint(__("Estimated Arrival Date must be in the future."));
-			frm.set_value("estimated_arrival_date", null);
+			form.set_value("estimated_arrival_date", null);
 		}
 	},
 });
 
-function dermagroup_get_mri_fieldname_by_label(label) {
-	const meta = frappe.get_meta("Material Request Item");
-	const fields = (meta && meta.fields) || [];
-	const df = fields.find((f) => (f.label || "").trim() === label);
-	return df ? df.fieldname : null;
+/**
+ * Handles actions for submitted documents
+ */
+function handleSubmittedDocument(form, doc, hasPurchasingAccess) {
+	if (doc.custom_approval_status === "Sent to Supplier" && hasPurchasingAccess) {
+		addActionButton(form, "Confirm Receipt", () => updateStatus(form, "Confirmed"));
+
+		addActionButton(form, "Mark Pending Delivery", () =>
+			updateStatus(form, "Pending Delivery")
+		);
+	}
+	// Purchasing manager actions
+	if (hasPurchasingAccess) {
+		if (doc.custom_approval_status === "Approved") {
+			addActionButton(form, "Send to Supplier", () =>
+				updateStatus(form, "Sent to Supplier")
+			);
+		}
+
+		if (doc.custom_approval_status === "Pending Delivery") {
+			addActionButton(form, "Confirm Receipt", () => updateStatus(form, "Confirmed"));
+		}
+	}
 }
 
-function dermagroup_autofill_last_purchase(frm, cdt, cdn) {
-	if (!frm || !frm.doc || frm.doc.material_request_type !== "Purchase") {
-		return;
+/**
+ * Handles actions for draft documents
+ */
+function handleDraftDocument(form, doc, hasProductionAccess, hasPurchasingAccess) {
+	const { custom_approval_status: status } = doc;
+
+	// Production manager actions
+	if (hasProductionAccess) {
+		if (!status || status === "Draft") {
+			addActionButton(form, "Submit for Approval", () =>
+				updateStatus(form, "Pending Approval", true)
+			);
+		}
 	}
 
-	const row = locals[cdt] && locals[cdt][cdn];
-	if (!row || !row.item_code) {
-		return;
+	if (hasPurchasingAccess) {
+		if (doc.custom_approval_status === "Pending Approval") {
+			addActionButton(form, "Approve", () => updateStatus(form, "Approved", true));
+		}
 	}
+}
+
+/**
+ * Updates document status
+ */
+function updateStatus(form, status, shouldSave = false) {
+	if (shouldSave) {
+		form.set_value("custom_approval_status", status);
+		form.save();
+	} else {
+		frappe.call({
+			method: "frappe.client.set_value",
+			args: {
+				doctype: "Material Request",
+				name: form.doc.name,
+				fieldname: "custom_approval_status",
+				value: status,
+			},
+			callback: () => form.reload_doc(),
+		});
+	}
+}
+
+/**
+ * Adds an action button to the form
+ */
+function addActionButton(form, label, onClick, group = "Actions") {
+	form.add_custom_button(__(label), onClick, __(group));
+}
+
+/**
+ * Gets field name by label from Meta
+ */
+function getFieldNameByLabel(doctype, label) {
+	const meta = frappe.get_meta(doctype);
+	const fields = meta?.fields || [];
+	const field = fields.find((f) => (f.label || "").trim() === label);
+	return field?.fieldname;
+}
+
+/**
+ * Autofills purchase details for an item
+ */
+function autofillLastPurchase(form, row, rowName) {
+	if (!form?.doc || form.doc.material_request_type !== "Purchase") return;
+
+	const rowData = locals[row]?.[rowName];
+	if (!rowData?.item_code) return;
 
 	frappe.call({
 		method: "dermagroup_lab.purchasing.utils.get_last_purchase_details",
 		args: {
-			item_code: row.item_code,
-			warehouse: row.warehouse,
+			item_code: rowData.item_code,
+			warehouse: rowData.warehouse,
 		},
-		callback: function (r) {
-			const currentRow = locals[cdt] && locals[cdt][cdn];
-			if (!currentRow || !currentRow.item_code || currentRow.item_code !== row.item_code) {
-				return;
-			}
+		callback: (response) => {
+			const currentRow = locals[row]?.[rowName];
+			if (!currentRow?.item_code || currentRow.item_code !== rowData.item_code) return;
 
-			const data = (r && r.message) || {};
-			if (!data || (data.qty == null && data.rate == null)) {
-				return;
-			}
+			const { message: data = {} } = response || {};
+			if (data.qty == null && data.rate == null) return;
 
 			if (data.qty != null) {
-				frappe.model.set_value(cdt, cdn, "qty", data.qty);
+				frappe.model.set_value(row, rowName, "qty", data.qty);
 			}
 			if (data.rate != null) {
-				frappe.model.set_value(cdt, cdn, "rate", data.rate);
+				frappe.model.set_value(row, rowName, "rate", data.rate);
 			}
 		},
 	});
 }
 
+// Item table events
 frappe.ui.form.on("Material Request Item", {
-	item_code: function (frm, cdt, cdn) {
-		dermagroup_autofill_last_purchase(frm, cdt, cdn);
-	},
-	warehouse: function (frm, cdt, cdn) {
-		dermagroup_autofill_last_purchase(frm, cdt, cdn);
-	},
+	item_code: (form, cdt, cdn) => autofillLastPurchase(form, cdt, cdn),
+	warehouse: (form, cdt, cdn) => autofillLastPurchase(form, cdt, cdn),
 });
+
+/**
+ * Auto-fills supplier from last purchase order
+ */
+function autoFillSupplierFromLastPurchase(form) {
+	const { doc } = form;
+
+	// Only proceed if there are items and no supplier is set
+	if (!doc.items?.length || doc.supplier) return;
+	// Get all unique item codes
+	const itemCodes = [...new Set(doc.items.map((item) => item.item_code))];
+
+	// Get the first item's last purchase details
+	frappe.call({
+		method: "dermagroup_lab.purchasing.utils.get_last_purchase_details",
+		args: {
+			item_code: itemCodes[0],
+			warehouse: doc.warehouse,
+		},
+		callback: (response) => {
+			const data = response.message || {};
+			if (data.supplier) {
+				form.set_value("suggested_supplier", data.supplier);
+			}
+		},
+	});
+}

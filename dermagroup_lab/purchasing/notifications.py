@@ -6,22 +6,22 @@ def send_material_request_to_supplier(material_request):
 	"""
 	Send material request to supplier via email with PDF attachment
 	"""
-	mr_doc = frappe.get_doc("Material Request", material_request)
+	mr_doc = frappe.get_doc("Material Request", material_request.name)
 
 	# Validate supplier email
 	if not mr_doc.get("supplier_email"):
 		frappe.throw(_("Supplier email is required"))
 
 	# Get print format
-	print_format = (
-		frappe.db.get_value(
-			"Property Setter", {"doc_type": "Material Request", "property": "default_print_format"}, "value"
-		)
-		or "Standard"
-	)
+	# print_format = (
+	# 	frappe.db.get_value(
+	# 		"Property Setter", {"doc_type": "Material Request", "property": "default_print_format"}, "value"
+	# 	)
+	# 	or "Standard"
+	# )
 
 	# Prepare email content
-	subject = _("Material Request - {0}").format(mr_doc.name)
+	subject = _("Material Request") + " - " + mr_doc.name
 
 	message = frappe.render_template(
 		"dermagroup_lab/templates/emails/material_request_to_supplier.html",
@@ -32,14 +32,18 @@ def send_material_request_to_supplier(material_request):
 		return
 
 	# Send email
-	frappe.sendmail(
-		recipients=[mr_doc.get("supplier_email")],
-		subject=subject,
-		message=message,
-		reference_doctype="Material Request",
-		reference_name=mr_doc.name,
-		attachments=[frappe.attach_print("Material Request", mr_doc.name, print_format=print_format)],
-	)
+	try:
+		frappe.sendmail(
+			recipients=[mr_doc.get("supplier_email")],
+			subject=subject,
+			message=message,
+			reference_doctype="Material Request",
+			reference_name=mr_doc.name,
+			# attachments=[frappe.attach_print("Material Request", mr_doc.name, print_format=print_format)],
+		)
+	except Exception as e:
+		frappe.log_error(f"Failed to send material request email: {e!s}")
+		# frappe.throw(_("Failed to send material request email"))
 
 	return True
 
@@ -69,8 +73,8 @@ def notify_purchasing_of_material_request(mr_doc):
 	if not recipients:
 		return
 
-	subject = _("Material Request - {0}").format(mr_doc.name)
-	message = _("A new Material Request is ready for review: {0}").format(mr_doc.name)
+	subject = _("Material Request") + " - " + mr_doc.name
+	message = _("A new Material Request is ready for review: ") + mr_doc.name
 
 	try:
 		frappe.sendmail(
@@ -80,6 +84,6 @@ def notify_purchasing_of_material_request(mr_doc):
 			reference_doctype="Material Request",
 			reference_name=mr_doc.name,
 		)
-	except Exception:
-		frappe.log_error("Unable to notify Purchasing Manager")
-		return
+	except Exception as e:
+		frappe.log_error("Unable to notify Purchasing Manager", e)
+		# frappe.throw(_("Unable to notify Purchasing Manager"))
