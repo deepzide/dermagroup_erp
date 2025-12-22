@@ -7,15 +7,18 @@ from dermagroup_lab.purchasing.validations import check_duplicate_requests
 
 
 @frappe.whitelist()
-def get_last_purchase_details(item_code, warehouse=None):
+def get_last_purchase_details(item_code=None, warehouse=None):
 	"""
 	Get details from the last purchase order for an item
 	Returns: dict with purchase_order, supplier, posting_date, qty, rate
 	"""
-	filters = {"item_code": item_code, "docstatus": 1}
+	filters = {"docstatus": 1}
 
 	if warehouse:
 		filters["warehouse"] = warehouse
+
+	if item_code:
+		filters["item_code"] = item_code
 
 	# Get the most recent purchase receipt item
 	last_purchase = frappe.db.get_all(

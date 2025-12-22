@@ -5,6 +5,11 @@ app_description = "A comprehensive Frappe application for complete digitalizatio
 app_email = "info@deepzide.com"
 app_license = "mit"
 
+# Migration Hooks
+# ----------------
+before_migrate = "dermagroup_lab.migrate.before_migrate"
+after_migrate = "dermagroup_lab.migrate.after_migrate"
+
 # Apps
 # ------------------
 
@@ -53,7 +58,7 @@ fixtures = [
 
 # include js in doctype views
 doctype_js = {"Material Request": "public/js/material_request.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {"Material Request": "public/js/material_request_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
