@@ -24,3 +24,6 @@
 "A new Material Request is ready for review: ","Una nueva solicitud de material está lista para revisar: "
 "Failed to send material request email","No se pudo enviar el correo de solicitud de material"
 "Unable to notify Purchasing Manager","No se pudo notificar al gerente de compras"
+"Purchasing Manager","Compras"
+"Production Manager","Producción"
+"Director","Director"
