@@ -1,41 +1,21 @@
 frappe.listview_settings["Material Request"] = {
-	add_fields: ["custom_approval_status"],
-
+	has_indicator_for_draft: true,
+	has_indicator_for_cancelled: true,
 	get_indicator: function (doc) {
-		const statusColors = {
-			"Pending Approval": "blue",
-			Approved: "green",
-			"Sent to Supplier": "green",
-			Confirmed: "blue",
-			"Pending Delivery": "yellow",
-			Cancelled: "red",
-		};
-
-		if (doc.custom_approval_status) {
-			return [
-				__(doc.custom_approval_status),
-				statusColors[doc.custom_approval_status] || "gray",
-				`custom_approval_status,=,${doc.custom_approval_status}`,
-			];
+		if (doc.status === "Pending Approval") {
+			return [__("Pending Approval"), "blue", "status,=,Pending Approval"];
+		} else if (doc.status === "Under Review") {
+			return [__("Under Review"), "orange", "status,=,Under Review"];
+		} else if (doc.status === "Approved") {
+			return [__("Approved"), "green", "status,=,Approved"];
+		} else if (doc.status === "Sent to Supplier") {
+			return [__("Sent to Supplier"), "green", "status,=,Sent to Supplier"];
+		} else if (doc.status === "Confirmed") {
+			return [__("Confirmed"), "blue", "status,=,Confirmed"];
+		} else if (doc.status === "Pending Delivery") {
+			return [__("Pending Delivery"), "yellow", "status,=,Pending Delivery"];
+		} else if (doc.status === "Cancelled") {
+			return [__("Cancelled"), "red", "status,=,Cancelled"];
 		}
-	},
-
-	// Opcional: Formatear la columna con pills coloridos
-	formatters: {
-		custom_approval_status(value) {
-			const statusColors = {
-				"Pending Approval": "blue",
-				Approved: "green",
-				"Sent to Supplier": "green",
-				Confirmed: "blue",
-				"Pending Delivery": "yellow",
-				Cancelled: "red",
-			};
-
-			if (value && statusColors[value]) {
-				return `<span class="indicator-pill ${statusColors[value]}">${__(value)}</span>`;
-			}
-			return value || "";
-		},
 	},
 };

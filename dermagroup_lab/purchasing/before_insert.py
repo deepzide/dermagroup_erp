@@ -15,5 +15,4 @@ def before_insert_material_request(doc, method=None):
 	for item_code in item_codes:
 		duplicates = check_duplicate_requests(item_code, supplier)
 		if duplicates:
-			frappe.msgprint(_("Similar orders found within 3 days"))
-			return
+			frappe.throw(_("Similar orders found within 3 days"))
