@@ -14,12 +14,12 @@
     "doctype": "Custom Field",
     "name": "Material Request-suggested_supplier",
     "dt": "Material Request",
-    "label": "Suggested Supplier",
+    "label": "Supplier",
     "fieldname": "suggested_supplier",
     "fieldtype": "Link",
     "options": "Supplier",
     "insert_after": "production_purchase_section",
-    "description": "Auto-filled from last purchase order"
+    "reqd": 1
   },
   {
     "doctype": "Custom Field",
@@ -29,7 +29,9 @@
     "fieldname": "purchase_type",
     "fieldtype": "Select",
     "options": "\nLocal\nImportación",
-    "insert_after": "suggested_supplier"
+    "insert_after": "suggested_supplier",
+    "reqd": 1,
+    "default": "Local"
   },
   {
     "doctype": "Custom Field",
@@ -38,7 +40,8 @@
     "label": "Estimated Arrival Date",
     "fieldname": "estimated_arrival_date",
     "fieldtype": "Date",
-    "insert_after": "purchase_type"
+    "insert_after": "purchase_type",
+    "allow_on_submit": 1
   },
   {
     "doctype": "Custom Field",
@@ -61,14 +64,13 @@
   },
   {
     "doctype": "Custom Field",
-    "name": "Material Request-custom_approval_status",
+    "name": "Material Request-request_responsible",
     "dt": "Material Request",
-    "label": "Custom Approval Status",
-    "fieldname": "custom_approval_status",
-    "fieldtype": "Select",
-    "options": "\nPending Approval\nUnder Review\nApproved\nSent to Supplier\nConfirmed\nPending Delivery\nCancelled",
-    "insert_after": "supplier_email",
-    "hidden": 1,
-    "allow_on_submit": 1
+    "label": "Request Responsible",
+    "fieldname": "request_responsible",
+    "fieldtype": "Link",
+    "options": "User",
+    "insert_after": "set_warehouse",
+    "reqd": 1
   }
 ]

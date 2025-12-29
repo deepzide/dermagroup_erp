@@ -1,67 +1,44 @@
 /**
  * Handles Material Request form customizations
  */
-// Add custom validation to prevent submission if not approved
+
+// Status configuration - usando los valores del Enum de Python
+const STATUS_CONFIG = {
+	"Pending Approval": "blue",
+	Approved: "green",
+	"Sent to Supplier": "green",
+	Confirmed: "blue",
+	"Pending Delivery": "yellow",
+	Cancelled: "red",
+};
+
+// Validation rules
 frappe.ui.form.on("Material Request", {
+	/**
+	 * Prevent submission if not approved
+	 */
 	on_submit: function (form) {
-		// Only allow submission if status is 'Approved'
-		if (!["Approved"].includes(form.doc.custom_approval_status)) {
+		if (!["Approved"].includes(form.doc.status)) {
 			frappe.msgprint(__("Please approve this request before submitting"));
 			frappe.validated = false;
 		}
 	},
+
 	/**
-	 * Refresh handler for Material Request form
-	 * @param {Object} form - The form object
+	 * Main refresh handler
 	 */
 	refresh: function (form) {
 		const { doc } = form;
 
-		// Disable submit button if not approved
-		if (form.doc.docstatus === 0) {
-			// Only for draft documents
-			const is_approved = ["Approved"].includes(form.doc.custom_approval_status);
+		// Setup primary action based on approval status
+		setupPrimaryAction(form);
 
-			// Remove the default Submit button
-			form.page.clear_primary_action();
+		// Setup date picker constraints
+		setupDatePickerConstraints(form);
 
-			if (is_approved) {
-				// If approved, show Submit button
-				form.page.set_primary_action(__("Submit"), function () {
-					form.save("Submit");
-				});
-			} else {
-				// If not approved, show only Save button
-				form.page.set_primary_action(__("Save"), function () {
-					form.save();
-				});
-			}
-		}
-		const today = frappe.datetime.get_today();
-		const minArrivalDate = frappe.datetime.add_days(today, 1);
-		const minDateObj = frappe.datetime.str_to_obj(minArrivalDate);
-
-		// Update date picker constraints
-		form.fields_dict.estimated_arrival_date?.datepicker?.update({
-			minDate: minDateObj,
-		});
-
-		// Status color mapping
-		const statusColors = {
-			"Pending Approval": "blue",
-			Approved: "green",
-			"Sent to Supplier": "green",
-			Confirmed: "blue",
-			"Pending Delivery": "yellow",
-			Cancelled: "red",
-		};
-
-		// Set status indicator if status exists
-		if (doc.custom_approval_status) {
-			form.page.set_indicator(
-				__(doc.custom_approval_status),
-				statusColors[doc.custom_approval_status]
-			);
+		// Set status indicator
+		if (doc.status) {
+			form.page.set_indicator(__(doc.status), STATUS_CONFIG[doc.status] || "gray");
 		}
 
 		// Get user roles
@@ -69,16 +46,14 @@ frappe.ui.form.on("Material Request", {
 		const hasProductionAccess = userRoles.includes("Production Manager");
 		const hasPurchasingAccess = userRoles.includes("Purchasing Manager");
 
-		// Handle submitted documents
+		// Handle document state-specific actions
 		if (doc.docstatus === 1) {
 			handleSubmittedDocument(form, doc, hasPurchasingAccess);
-		}
-		// Handle draft documents
-		else if (doc.docstatus === 0) {
+		} else if (doc.docstatus === 0) {
 			handleDraftDocument(form, doc, hasProductionAccess, hasPurchasingAccess);
 		}
 
-		// Auto-fill supplier from last purchase if new document
+		// Auto-fill supplier for new purchase requests
 		if (doc.__islocal && doc.material_request_type === "Purchase") {
 			autoFillSupplierFromLastPurchase(form);
 		}
@@ -86,7 +61,6 @@ frappe.ui.form.on("Material Request", {
 
 	/**
 	 * Validates estimated arrival date
-	 * @param {Object} form - The form object
 	 */
 	estimated_arrival_date: function (form) {
 		const { doc } = form;
@@ -103,27 +77,65 @@ frappe.ui.form.on("Material Request", {
 });
 
 /**
+ * Setup primary action button based on approval status
+ */
+function setupPrimaryAction(form) {
+	if (form.doc.docstatus !== 0) return;
+
+	const isApproved = ["Approved"].includes(form.doc.status);
+
+	// Remove default Submit button
+	form.page.clear_primary_action();
+
+	if (isApproved) {
+		form.page.set_primary_action(__("Submit"), function () {
+			form.save("Submit");
+		});
+	} else {
+		form.page.set_primary_action(__("Save"), function () {
+			form.save();
+		});
+	}
+}
+
+/**
+ * Setup date picker constraints for estimated arrival date
+ */
+function setupDatePickerConstraints(form) {
+	const today = frappe.datetime.get_today();
+	const minArrivalDate = frappe.datetime.add_days(today, 1);
+	const minDateObj = frappe.datetime.str_to_obj(minArrivalDate);
+
+	form.fields_dict.estimated_arrival_date?.datepicker?.update({
+		minDate: minDateObj,
+	});
+}
+
+/**
  * Handles actions for submitted documents
  */
 function handleSubmittedDocument(form, doc, hasPurchasingAccess) {
-	if (doc.custom_approval_status === "Sent to Supplier" && hasPurchasingAccess) {
-		addActionButton(form, "Confirm Receipt", () => updateStatus(form, "Confirmed"));
+	if (!hasPurchasingAccess) return;
 
-		addActionButton(form, "Mark Pending Delivery", () =>
-			updateStatus(form, "Pending Delivery")
-		);
-	}
-	// Purchasing manager actions
-	if (hasPurchasingAccess) {
-		if (doc.custom_approval_status === "Approved") {
+	const { status } = doc;
+
+	switch (status) {
+		case "Approved":
 			addActionButton(form, "Send to Supplier", () =>
 				updateStatus(form, "Sent to Supplier")
 			);
-		}
+			break;
 
-		if (doc.custom_approval_status === "Pending Delivery") {
+		case "Sent to Supplier":
 			addActionButton(form, "Confirm Receipt", () => updateStatus(form, "Confirmed"));
-		}
+			addActionButton(form, "Mark Pending Delivery", () =>
+				updateStatus(form, "Pending Delivery")
+			);
+			break;
+
+		case "Pending Delivery":
+			addActionButton(form, "Confirm Receipt", () => updateStatus(form, "Confirmed"));
+			break;
 	}
 }
 
@@ -131,19 +143,10 @@ function handleSubmittedDocument(form, doc, hasPurchasingAccess) {
  * Handles actions for draft documents
  */
 function handleDraftDocument(form, doc, hasProductionAccess, hasPurchasingAccess) {
-	const { custom_approval_status: status } = doc;
-
-	// Production manager actions
-	if (hasProductionAccess) {
-		if (!status || status === "Draft") {
-			addActionButton(form, "Submit for Approval", () =>
-				updateStatus(form, "Pending Approval", true)
-			);
-		}
-	}
+	const { status } = doc;
 
 	if (hasPurchasingAccess) {
-		if (doc.custom_approval_status === "Pending Approval") {
+		if (status === "Pending Approval") {
 			addActionButton(form, "Approve", () => updateStatus(form, "Approved", true));
 		}
 	}
@@ -154,7 +157,7 @@ function handleDraftDocument(form, doc, hasProductionAccess, hasPurchasingAccess
  */
 function updateStatus(form, status, shouldSave = false) {
 	if (shouldSave) {
-		form.set_value("custom_approval_status", status);
+		form.set_value("status", status);
 		form.save();
 	} else {
 		frappe.call({
@@ -162,7 +165,7 @@ function updateStatus(form, status, shouldSave = false) {
 			args: {
 				doctype: "Material Request",
 				name: form.doc.name,
-				fieldname: "custom_approval_status",
+				fieldname: "status",
 				value: status,
 			},
 			callback: () => form.reload_doc(),
@@ -175,16 +178,6 @@ function updateStatus(form, status, shouldSave = false) {
  */
 function addActionButton(form, label, onClick, group = "Actions") {
 	form.add_custom_button(__(label), onClick, __(group));
-}
-
-/**
- * Gets field name by label from Meta
- */
-function getFieldNameByLabel(doctype, label) {
-	const meta = frappe.get_meta(doctype);
-	const fields = meta?.fields || [];
-	const field = fields.find((f) => (f.label || "").trim() === label);
-	return field?.fieldname;
 }
 
 /**
@@ -233,6 +226,7 @@ function autoFillSupplierFromLastPurchase(form) {
 
 	// Only proceed if there are items and no supplier is set
 	if (!doc.items?.length || doc.supplier) return;
+
 	// Get all unique item codes
 	const itemCodes = [...new Set(doc.items.map((item) => item.item_code))];
 

@@ -14,7 +14,7 @@ def on_update_material_request(doc, method=None):
 	if doc.get("material_request_type") != "Purchase":
 		return
 
-	match doc.custom_approval_status:
+	match doc.status:
 		case ApprovalStatus.PENDING_APPROVAL.value:
 			notify_purchasing_of_material_request(doc)
 		case ApprovalStatus.SENT_TO_SUPPLIER.value:
