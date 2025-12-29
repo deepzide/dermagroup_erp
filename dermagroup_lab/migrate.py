@@ -3,6 +3,10 @@
 
 import frappe
 
+from dermagroup_lab.patches.customize_material_request_status import (
+	execute as customize_material_request_status,
+)
+
 
 def before_migrate():
 	"""Execute before migration"""
@@ -16,6 +20,9 @@ def after_migrate():
 		setup_material_request_permissions,
 		setup_required_permissions,
 	)
+
+	print("Customizing Material Request Status...")
+	customize_material_request_status()
 
 	print("Verifying roles...")
 	ensure_roles_exist()

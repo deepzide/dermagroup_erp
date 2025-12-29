@@ -56,6 +56,10 @@ fixtures = [
 # include js in page
 # page_js = {"page" : "public/js/file.js"}
 
+override_doctype_class = {
+	"Material Request": "dermagroup_lab.overrides.material_request.CustomMaterialRequest"
+}
+
 # include js in doctype views
 doctype_js = {"Material Request": "public/js/material_request.js"}
 doctype_list_js = {"Material Request": "public/js/material_request_list.js"}
