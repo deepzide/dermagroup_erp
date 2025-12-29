@@ -1,6 +1,5 @@
 const STATUS_CONFIG = {
 	"Pending Approval": "blue",
-	"Under Review": "orange",
 	Approved: "green",
 	"Sent to Supplier": "green",
 	Confirmed: "blue",
