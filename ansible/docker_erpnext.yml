@@ -163,6 +163,16 @@
       ansible.builtin.debug:
         msg: "{{ create_site_output.stdout_lines | default([]) }}"
 
+
+    - name: Fix PDF generation - internal host for wkhtmltopdf and public site_url
+      ansible.builtin.shell: |
+        docker compose -f pwd.yml exec -T backend bench --site {{ site_name }} set-config host_name "http://frontend:8080"
+        docker compose -f pwd.yml exec -T backend bench --site {{ site_name }} set-config site_url "https://erp-dermagroup.deepzide.com"
+      args:
+        chdir: "{{ project_dir }}/frappe_docker"
+      when: site_check.rc == 0 or create_site_output.rc == 0
+
+
     # ------------------------------------------------------------------------
     # 🔄 Migraciones y build
     # ------------------------------------------------------------------------
