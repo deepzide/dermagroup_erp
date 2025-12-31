@@ -3,4 +3,5 @@
 # Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
 
 [post_model_sync]
+dermagroup_lab.patches.add_batch_prefix_custom_field
 # Patches added in this section will be executed after doctypes are migrated

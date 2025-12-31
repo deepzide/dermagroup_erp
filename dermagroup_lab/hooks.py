@@ -156,6 +156,7 @@ doc_events = {
 		"on_update": "dermagroup_lab.purchasing.on_update.on_update_material_request",
 		"before_insert": "dermagroup_lab.purchasing.before_insert.before_insert_material_request",
 	},
+	"Batch": {"autoname": "dermagroup_lab.stock.batch_naming.autoname_batch"},
 }
 
 # Scheduled Tasks
