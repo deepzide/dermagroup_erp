@@ -156,7 +156,16 @@ doc_events = {
 		"on_update": "dermagroup_lab.purchasing.on_update.on_update_material_request",
 		"before_insert": "dermagroup_lab.purchasing.before_insert.before_insert_material_request",
 	},
-	"Batch": {"autoname": "dermagroup_lab.stock.batch_naming.autoname_batch"},
+	"Batch": {
+		"autoname": "dermagroup_lab.stock.batch_naming.autoname_batch",
+		"validate": "dermagroup_lab.stock.doctype_validations.validate_batch",
+		"on_update": "dermagroup_lab.stock.doctype_validations.notify_certificate_pending",
+	},
+	"Purchase Receipt": {
+		"validate": "dermagroup_lab.stock.doctype_validations.validate_purchase_receipt",
+		"on_update": "dermagroup_lab.stock.workflow_actions.handle_pr_workflow_action",
+	},
+	"Stock Entry": {"validate": "dermagroup_lab.stock.doctype_validations.validate_stock_entry"},
 }
 
 # Scheduled Tasks

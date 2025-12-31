@@ -20,6 +20,7 @@ def after_install():
 	ensure_roles_exist()
 	setup_material_request_permissions()
 	setup_required_permissions()
+	setup_receiving_permissions()
 
 
 def ensure_roles_exist():
@@ -44,9 +45,10 @@ def setup_required_permissions():
 	- Production: Can view Suppliers, Warehouses, Companies, and Items
 	- Purchasing: Full access to Suppliers, Warehouses, Companies, and Items
 	- Director: Read-only access to view data with export/print capabilities
+	- Reception, Quality: Read access to master data
 	"""
 	# Common doctypes that need role-based permissions
-	doctypes = ["Supplier", "Warehouse", "Company", "Item"]
+	doctypes = ["Supplier", "Warehouse", "Company", "Item", "Item Group"]
 
 	# Production Manager - Basic read access
 	for doctype in doctypes:
@@ -70,8 +72,69 @@ def setup_required_permissions():
 		update_permission_property(doctype, "Director", 0, "export", 1)
 		update_permission_property(doctype, "Director", 0, "print", 1)
 
+	# Reception Manager - Read Master Data
+	for doctype in doctypes:
+		add_permission(doctype, "Reception Manager", 0)
+		update_permission_property(doctype, "Reception Manager", 0, "read", 1)
+
+	# Quality Manager - Read Master Data
+	for doctype in doctypes:
+		add_permission(doctype, "Quality Manager", 0)
+		update_permission_property(doctype, "Quality Manager", 0, "read", 1)
+
 	frappe.db.commit()
 	print("Required permissions configured successfully")
+
+
+def setup_receiving_permissions():
+	"""
+	Set up permissions for Receiving Module:
+	- Reception: Create/Submit Purchase Receipt, Attach Certificates (Batch)
+	- Quality: View Batch/Receipts, Edit Batch (Status)
+	- Purchasing: Associate Invoices (Purchase Invoice), View Receipts
+	"""
+	# --- Reception Manager ---
+	# Purchase Receipt: Create, Edit, Submit
+	pr_perms = ["read", "write", "create", "submit", "print", "email", "report"]
+	add_permission("Purchase Receipt", "Reception Manager", 0)
+	for perm in pr_perms:
+		update_permission_property("Purchase Receipt", "Reception Manager", 0, perm, 1)
+
+	# Batch: Create, Edit (to attach certificate)
+	batch_perms = ["read", "write", "create", "print"]
+	add_permission("Batch", "Reception Manager", 0)
+	for perm in batch_perms:
+		update_permission_property("Batch", "Reception Manager", 0, perm, 1)
+
+	# --- Quality Manager ---
+	# Batch: Read, Write (update status), Print
+	add_permission("Batch", "Quality Manager", 0)
+	update_permission_property("Batch", "Quality Manager", 0, "read", 1)
+	update_permission_property(
+		"Batch", "Quality Manager", 0, "write", 1
+	)  # To update status/reason via script or UI
+	update_permission_property("Batch", "Quality Manager", 0, "print", 1)
+
+	# Purchase Receipt: Read only
+	add_permission("Purchase Receipt", "Quality Manager", 0)
+	update_permission_property("Purchase Receipt", "Quality Manager", 0, "read", 1)
+	update_permission_property("Purchase Receipt", "Quality Manager", 0, "print", 1)
+
+	# --- Purchasing Manager ---
+	# Purchase Receipt: Read, Write, Submit (Backup for Reception?) - keeping full access as typical for Manager
+	pr_perms_purch = ["read", "write", "create", "submit", "amend", "cancel", "print", "email"]
+	add_permission("Purchase Receipt", "Purchasing Manager", 0)
+	for perm in pr_perms_purch:
+		update_permission_property("Purchase Receipt", "Purchasing Manager", 0, perm, 1)
+
+	# Purchase Invoice: Create, Associating with PR
+	pi_perms = ["read", "write", "create", "submit", "amend", "cancel", "print"]
+	add_permission("Purchase Invoice", "Purchasing Manager", 0)
+	for perm in pi_perms:
+		update_permission_property("Purchase Invoice", "Purchasing Manager", 0, perm, 1)
+
+	frappe.db.commit()
+	print("Receiving module permissions configured successfully")
 
 
 def setup_material_request_permissions():
