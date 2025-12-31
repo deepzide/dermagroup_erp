@@ -4,6 +4,14 @@
 import frappe
 from frappe.permissions import add_permission, update_permission_property
 
+DERMAGROUP_LAB_ROLES = [
+	"Production Manager",  # Producción
+	"Purchasing Manager",  # Compras
+	"Director",  # Dirección
+	"Reception Manager",  # Recepción
+	"Quality Manager",  # Calidad
+]
+
 
 def after_install():
 	"""
@@ -15,8 +23,7 @@ def after_install():
 
 
 def ensure_roles_exist():
-	roles = ["Production Manager", "Purchasing Manager", "Director"]
-	for role_name in roles:
+	for role_name in DERMAGROUP_LAB_ROLES:
 		if frappe.db.exists("Role", role_name):
 			continue
 

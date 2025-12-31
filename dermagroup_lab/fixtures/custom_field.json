@@ -72,5 +72,28 @@
     "options": "User",
     "insert_after": "set_warehouse",
     "reqd": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Purchase Receipt-purchase_type",
+    "dt": "Purchase Receipt",
+    "label": "Purchase Type",
+    "fieldname": "purchase_type",
+    "fieldtype": "Select",
+    "options": "\nLocal\nImportación",
+    "insert_after": "supplier",
+    "reqd": 1,
+    "default": "Local"
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Purchase Receipt-request_responsible",
+    "dt": "Purchase Receipt",
+    "label": "Reception Responsible",
+    "fieldname": "reception_responsible",
+    "fieldtype": "Link",
+    "options": "User",
+    "insert_after": "is_return",
+    "reqd": 1
   }
 ]
