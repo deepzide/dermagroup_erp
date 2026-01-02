@@ -13,6 +13,7 @@ def execute():
 			"options": "\nLocal\nImportación",
 			"default": "Local",
 			"insert_after": "supplier",
+			"reqd": 1,
 		},
 	)
 
@@ -23,12 +24,8 @@ def execute():
 			"label": "Bill No (Factura)",
 			"fieldtype": "Data",
 			"insert_after": "supplier_delivery_note",
+			"reqd": 1,
 		},
-	)
-
-	create_custom_field(
-		"Purchase Receipt",
-		{"fieldname": "bill_date", "label": "Bill Date", "fieldtype": "Date", "insert_after": "bill_no"},
 	)
 
 	# Batch Fields
